@@ -32,20 +32,55 @@ public class LanguageModel {
     }
 
     /** Builds a language model from the text in the given file (the corpus). */
-	public void train(String fileName) {
-		// Your code goes here
-	}
+	public void train(String sourceFile) {
+    String currentSequence = "";
+    char nextChar;
+    In reader = new In(sourceFile);
+    while ((!reader.isEmpty()) && (currentSequence.length() < windowLength)) {
+        nextChar = reader.readChar();
+        currentSequence += nextChar;
+    }
+    while (!reader.isEmpty()) {
+        nextChar = reader.readChar();
+        List charList = CharDataMap.get(currentSequence);
+        if (charList == null) {
+            charList = new List();
+            CharDataMap.put(currentSequence, charList);
+        }
+        charList.update(nextChar);
+        currentSequence += nextChar;
+        currentSequence = currentSequence.substring(1, currentSequence.length());
+    }
+    for (List entry : CharDataMap.values())
+        calculateProbabilities(entry);
+}
 
     // Computes and sets the probabilities (p and cp fields) of all the
 	// characters in the given list. */
-	void calculateProbabilities(List probs) {				
-		// Your code goes here
-	}
+	// Computes and sets the probabilities (p and cp fields) of all the
+    // characters in the given list. */
+    void calculateProbabilities(List charList) {               
+        int totalCount = 0;
+        for (int idx = 0; idx < charList.getSize(); ++idx) {
+            totalCount += charList.get(idx).count;
+        }
+        for (int idx = 0; idx < charList.getSize(); ++idx) {
+            charList.get(idx).p = charList.get(idx).count / (double)totalCount; 
+            double prevCp = (idx > 0 ? charList.get(idx - 1).cp : 0);
+            charList.get(idx).cp = charList.get(idx).p + prevCp; 
+        }
+    }
 
-    // Returns a random character from the given probabilities list.
 	char getRandomChar(List probs) {
-		// Your code goes here
-		return ' ';
+		double random = randomGenerator.nextDouble();
+		char charToReturn = ' ';
+		for (int i = 0; i < probs.getSize(); ++i) {
+			if (random < probs.get(i).cp) {
+				charToReturn = probs.get(i).chr;
+				break;
+			}
+		}
+		return charToReturn;
 	}
 
     /**
@@ -56,11 +91,23 @@ public class LanguageModel {
 	 * @return the generated text
 	 */
 	public String generate(String initialText, int textLength) {
-		// Your code goes here
-        return "";
+		if (initialText.length() < windowLength)
+			return initialText;
+
+		String generatedText = initialText;
+		for (int i = 0; i < textLength; ++i) {
+			String window = generatedText.substring(generatedText.length() - windowLength, generatedText.length());
+			List probs = CharDataMap.get(window);
+			if (probs == null)
+				return generatedText;
+
+			generatedText += getRandomChar(probs);
+		}
+		return generatedText;
 	}
 
     /** Returns a string representing the map of this language model. */
+	/** Returns a string representing the map of this language model. */
 	public String toString() {
 		StringBuilder str = new StringBuilder();
 		for (String key : CharDataMap.keySet()) {
@@ -71,6 +118,17 @@ public class LanguageModel {
 	}
 
     public static void main(String[] args) {
-		// Your code goes here
+        int contextSize = Integer.parseInt(args[0]);
+        String seedText = args[1];
+        int targetLength = Integer.parseInt(args[2]);
+        Boolean isRandomMode = args[3].equals("random");
+        String corpusFile = args[4];
+        LanguageModel textModel;
+        if (isRandomMode)
+            textModel = new LanguageModel(contextSize);
+        else
+            textModel = new LanguageModel(contextSize, 20);
+        textModel.train(corpusFile);
+        System.out.println(textModel.generate(seedText, targetLength));
     }
 }
